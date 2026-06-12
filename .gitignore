@@ -1,0 +1,12 @@
+# Anki writes these into the live add-on folder — never commit them.
+# meta.json contains your saved config, including your API key;
+# user_files/ holds the cached MP3s and lookup index.
+meta.json
+user_files/
+
+# Python
+__pycache__/
+*.pyc
+
+# Build artifacts
+*.ankiaddon

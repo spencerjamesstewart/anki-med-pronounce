@@ -180,8 +180,89 @@ def lookup_term(term, key):
 # ------------------------------------------------------------------- UI
 
 
+# Gruvbox Dark palette (https://github.com/morhetz/gruvbox).
+GRUVBOX = {
+    "card": "#3c3836",    # bg1 — the panel surface
+    "input": "#282828",   # bg0 — recessed input well
+    "border": "#504945",  # bg2
+    "text": "#ebdbb2",    # fg1
+    "muted": "#928374",   # gray
+    "accent": "#8ec07c",  # bright aqua — focus ring + phonetics
+    "header": "#fabd2f",  # bright yellow — section heading
+    "btn": "#8ec07c",     # bright aqua — button
+    "btn_hi": "#b8bb26",  # bright green — button hover
+    "btn_fg": "#1d2021",  # bg0_hard — dark text on the bright button
+}
+
+
+def _stylesheet(p):
+    # `border: none` on the button forces Qt's styled box model so the accent
+    # background actually paints over macOS's native button style.
+    return f"""
+    #medpronCard {{
+        background: {p['card']};
+        border: 1px solid {p['border']};
+        border-radius: 12px;
+    }}
+    #medpronHeader {{
+        color: {p['header']};
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }}
+    #medpronInput {{
+        font-size: 16px;
+        padding: 8px 10px;
+        border: 1px solid {p['border']};
+        border-radius: 8px;
+        background: {p['input']};
+        color: {p['text']};
+        selection-background-color: {p['accent']};
+        selection-color: {p['btn_fg']};
+    }}
+    #medpronInput:focus {{
+        border: 1px solid {p['accent']};
+    }}
+    #medpronButton {{
+        font-size: 18px;
+        border: none;
+        border-radius: 8px;
+        background: {p['btn']};
+        color: {p['btn_fg']};
+    }}
+    #medpronButton:hover {{ background: {p['btn_hi']}; }}
+    #medpronButton:disabled {{ background: {p['border']}; color: {p['muted']}; }}
+    #medpronStatus {{
+        font-size: 14px;
+        color: {p['muted']};
+    }}
+    """
+
+
 class _LookupLine(QLineEdit):
-    """A line edit where Esc hands keyboard focus back to the reviewer."""
+    """Lookup box that keeps out of the reviewer's way.
+
+    Esc hands keyboard focus back to the reviewer. While the box has focus
+    we also swallow Anki's window-level review shortcuts (Enter to answer,
+    Space, 1–4, e to edit, …) so typing a term — and pressing Enter to look
+    it up — never advances the card underneath.
+    """
+
+    def event(self, evt):
+        # Qt offers a key to the focused widget via a ShortcutOverride event
+        # before firing any matching window shortcut. Accepting it routes the
+        # key here instead of to the shortcut. We claim every un-modified key
+        # so reviewer hotkeys stay dormant, but leave Ctrl/⌘ combos alone so
+        # clipboard and app shortcuts (copy, paste, quit) keep working.
+        if evt.type() == QEvent.Type.ShortcutOverride:
+            blocking_mods = (
+                Qt.KeyboardModifier.ControlModifier
+                | Qt.KeyboardModifier.MetaModifier
+            )
+            if not (evt.modifiers() & blocking_mods):
+                evt.accept()
+                return True
+        return super().event(evt)
 
     def keyPressEvent(self, evt):
         if evt.key() == Qt.Key.Key_Escape:
@@ -198,29 +279,49 @@ class PronunciationDock(QDockWidget):
         self.index = _load_index()
 
         body = QWidget()
-        col = QVBoxLayout(body)
-        col.setContentsMargins(8, 8, 8, 8)
-        col.setSpacing(6)
+        body.setObjectName("medpronBody")
+        outer = QVBoxLayout(body)
+        outer.setContentsMargins(10, 10, 10, 10)
+        outer.setSpacing(8)
+
+        card = QFrame()
+        card.setObjectName("medpronCard")
+        col = QVBoxLayout(card)
+        col.setContentsMargins(12, 12, 12, 12)
+        col.setSpacing(10)
+
+        header = QLabel("🩺  MEDICAL PRONUNCIATION")
+        header.setObjectName("medpronHeader")
+        col.addWidget(header)
 
         row = QHBoxLayout()
+        row.setSpacing(6)
         self.input = _LookupLine()
+        self.input.setObjectName("medpronInput")
         self.input.setPlaceholderText("Type a medical term…")
         self.input.setMinimumWidth(150)
+        self.input.setClearButtonEnabled(True)
         self.button = QPushButton("🔊")
-        self.button.setFixedWidth(36)
+        self.button.setObjectName("medpronButton")
+        self.button.setFixedSize(42, 40)
+        self.button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.button.setToolTip("Look up / play (or press Enter)")
         row.addWidget(self.input)
         row.addWidget(self.button)
         col.addLayout(row)
 
-        self.status = QLabel("Ready.")
+        self.status = QLabel("Ready — type a term and press Enter.")
+        self.status.setObjectName("medpronStatus")
         self.status.setWordWrap(True)
         self.status.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
         col.addWidget(self.status)
-        col.addStretch(1)
 
+        outer.addWidget(card)
+        outer.addStretch(1)
+
+        body.setStyleSheet(_stylesheet(GRUVBOX))
         self.setWidget(body)
         self.input.returnPressed.connect(self.lookup)
         self.button.clicked.connect(self.lookup)
@@ -314,23 +415,35 @@ class PronunciationDock(QDockWidget):
         headword = result.get("headword") or self.input.text().strip()
         phonetic = result.get("phonetic")
         audio_file = result.get("audio_file")
+        p = GRUVBOX
 
-        bits = [f"<b>{html.escape(headword)}</b>"]
+        parts = [
+            f"<span style='font-size:20px;font-weight:700;color:{p['text']};'>"
+            f"{html.escape(headword)}</span>"
+        ]
         if phonetic:
-            bits.append("\\" + html.escape(phonetic) + "\\")
-        line = " &nbsp; ".join(bits)
-        if from_cache:
-            line += " &nbsp;(cached)"
+            parts.append(
+                f"<span style='font-size:15px;color:{p['accent']};'>"
+                f"\\{html.escape(phonetic)}\\</span>"
+            )
 
         if audio_file:
             path = os.path.join(AUDIO_DIR, audio_file)
             if os.path.exists(path):
                 av_player.play_file(path)
-                self.set_status(line)
+                note = "🔊 playing" + (" · cached" if from_cache else "")
             else:
-                self.set_status(line + " — audio file missing from cache.")
+                note = "audio file missing from cache"
         else:
-            self.set_status(line + " — no audio available for this entry.")
+            note = "no audio available for this entry"
+        parts.append(
+            f"<span style='font-size:12px;color:{p['muted']};'>"
+            f"{html.escape(note)}</span>"
+        )
+
+        # One compact line so a bottom-docked panel stays short; the plain
+        # spaces let it wrap gracefully if the dock is ever narrow instead.
+        self.set_status(" &nbsp; ".join(parts))
         self.input.selectAll()
 
 
@@ -342,7 +455,7 @@ _dock = None
 def _setup():
     global _dock
     _dock = PronunciationDock()
-    mw.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, _dock)
+    mw.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, _dock)
 
     config = mw.addonManager.getConfig(__name__) or {}
 

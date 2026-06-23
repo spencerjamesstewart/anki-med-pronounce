@@ -12,7 +12,7 @@ Requires Anki 2.1.50+ and a free Medical Dictionary API key from
 ## Layout
 
 - `__init__.py` — the entire add-on (UI, API client, cache)
-- `config.json` — default config (API key, shortcut, startup visibility)
+- `config.json` — default config (API key, shortcuts, startup visibility)
 - `config.md` — config docs shown in Anki's add-on config dialog
 - `manifest.json` — package metadata for `.ankiaddon` installs
 

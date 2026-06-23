@@ -1,5 +1,6 @@
 {
     "api_key": "",
     "shortcut": "Ctrl+Shift+M",
+    "toggle_shortcut": "Ctrl+Shift+P",
     "show_on_startup": true
 }

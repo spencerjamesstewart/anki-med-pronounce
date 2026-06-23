@@ -459,9 +459,14 @@ def _setup():
 
     config = mw.addonManager.getConfig(__name__) or {}
 
-    # Tools-menu toggle, stays in sync with the dock's close button.
+    # Tools-menu toggle, stays in sync with the dock's close button. Binding a
+    # shortcut to this action shows/hides the whole panel without stealing
+    # focus — handy when it's in the way mid-review — and annotates the menu.
     action = _dock.toggleViewAction()
     action.setText("Medical Pronunciation Lookup")
+    toggle_shortcut = (config.get("toggle_shortcut") or "Ctrl+Shift+P").strip()
+    if toggle_shortcut:
+        action.setShortcut(QKeySequence(toggle_shortcut))
     mw.form.menuTools.addAction(action)
 
     # Global shortcut to jump the cursor into the lookup box.

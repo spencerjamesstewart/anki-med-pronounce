@@ -16,6 +16,12 @@ from anywhere in Anki (default `Ctrl+Shift+M`). Press `Esc` in the box to
 hand focus back to the reviewer. Changing the shortcut requires an Anki
 restart.
 
+**toggle_shortcut**: Keyboard shortcut that shows/hides the whole panel
+without stealing focus (default `Ctrl+Shift+P`) — handy when it's in the
+way while reviewing. Mirrors the Tools → Medical Pronunciation Lookup menu
+toggle. Change it if it conflicts with another shortcut; changes require an
+Anki restart.
+
 **show_on_startup**: Whether the dock is visible when Anki opens (default
 `true`). You can always toggle it via Tools → Medical Pronunciation Lookup.
 
